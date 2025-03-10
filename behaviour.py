@@ -3,7 +3,7 @@ import math
 import pygame
 import copy
 
-from Draqez.classes import Particle
+from classes import Particle
 from config import *
 from auxilium import *
 from managers import *
@@ -39,7 +39,8 @@ class ShooterBehaviour(Controller):
                 returning["horizontal"], returning["vertical"] = pos_by_angle(0,0, get_angle(*i.position, *self.entity.position), 1)
             elif distance(*self.entity.position, *i.position) > self.max_distance:
                 returning["horizontal"], returning["vertical"] = pos_by_angle(0,0, get_angle(*self.entity.position, *i.position), 1)
-            returning["shooting"] = True
+            returning["charging"] = True
+            returning["shoot"] = True
             returning["shoot_pos"] = i.position
             break
         return returning
@@ -55,7 +56,15 @@ class PlayerController(Controller):
         return {
             "horizontal": int(self.inputManager.keyPressed(pygame.K_d))-int(self.inputManager.keyPressed(pygame.K_a)),
             "vertical": int(self.inputManager.keyPressed(pygame.K_s))-int(self.inputManager.keyPressed(pygame.K_w)),
-            "charge": self.inputManager.mousePressed(self.inputManager.MOUSE_LEFT),
-            "shoot": self.inputManager.mouseDownOnce(self.inputManager.MOUSE_LEFT),
+            "charging": self.inputManager.mousePressed(self.inputManager.MOUSE_LEFT),
+            "shoot": self.inputManager.mouseUpOnce(self.inputManager.MOUSE_LEFT),
             "shoot_pos": pygame.mouse.get_pos()
         }
+
+
+def playerify(entity, inputManager):
+    entity.behaviour = PlayerController(inputManager)
+    entity.health = RenderableHealthManager(entity.health.max_health)
+    entity.weapons[0].max_cooldown = 1
+    entity.weapons[0].max_charge = 5
+    return entity

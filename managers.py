@@ -144,7 +144,7 @@ class InputManager:
 
 
 class HealthManager:
-    def __init__(self, max_health, health = 0, shield = 0, shield_enabled = True, invincible = False, invincible_time_on_hit = 5, safe_segments = 0):
+    def __init__(self, max_health, health = 0, shield = 0, shield_enabled = True, invincible = False, invincible_time_on_hit = 5, safe_segments = 2):
         self.health = health if health > 0 else max_health
         self.rallying_health = health
         self.max_health = max_health
@@ -216,10 +216,12 @@ class HealthManager:
             return False
         return self.damage(-value/2)
 
+    def render(self, surface):
+        pass
 
 class RenderableHealthManager(HealthManager):
     def __init__(self, max_health, health=0, shield=0, shield_enabled=True, invincible=False, invincible_time_on_hit=5,
-                 safe_segments=10, base_color=(255, 255, 255), empty_color=(50, 50, 50), damage_color=(255, 0, 0),
+                 safe_segments=0, base_color=(255, 255, 255), empty_color=(50, 50, 50), damage_color=(255, 0, 0),
                  heal_color=(50, 255, 50), shield_enabled_color=(0, 50, 255), shield_disabled_color=(70, 70, 70),
                  rallying_color=(100, 0, 0)):
 
@@ -295,12 +297,16 @@ class EntitiesManager:
     def update(self, DT):
         for i in self.entities:
             i.update(DT)
-            if i.healthManager.is_dead():
+            if i.health.is_dead():
                 self.remove(i)
 
     def render(self, screen):
         for i in self.entities:
             i.render(screen)
+
+    def render_UI(self, screen):
+        for i in self.entities:
+            i.render_UI(screen)
 
     def spawn(self, obj):
         self.entities.append(obj)
@@ -316,9 +322,11 @@ class BulletsManager:
     def update(self, DT):
         for i in self.bullets:
             i.update(DT)
-            if i.lifetime <= 0:
-                # self.remove(i)
-                pass
+            if collided := (target := i.check_collision()) is not None:
+                target.health.damage(i.damage)
+            if i.lifetime <= 0 or collided:
+                self.remove(i)
+                i.on_death()
     def render(self, screen):
         for i in self.bullets:
             i.render(screen)

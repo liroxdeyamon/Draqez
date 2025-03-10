@@ -10,28 +10,37 @@ from registries import *
 from bullets import *
 
 class Weapon:
-    def __init__(self, ammo, charge_time, cooldown_time, entitiesManager, bulletsManager, particlesManager, owner, bullet):
+    def __init__(self, ammo, charge_time, cooldown_time, entitiesManager, bulletsManager, particlesManager, owner, bullet, knockback = -10):
         self.ammo = self.max_ammo = max(0, ammo)
-        self.charge = self.cooldown = 0
+        self.charge = 0
         self.max_charge = max(0, charge_time)
         self.max_cooldown = max(0, cooldown_time)
+        self.cooldown = self.max_cooldown*(1+random.random())
+        self.charging = False
         self.entity = owner
-        self.bullet = bullet([0,0], [0,0], self.entity.team, 1, self.entity.size/4, 5, self.entity.color, entitiesManager, bulletsManager, particlesManager) if bullet is not None else None
+        self.bullet = bullet([0,0], [0,0], self.entity.team, 1, 7, 5, self.entity.color, entitiesManager, bulletsManager, particlesManager) if bullet is not None else None
         self.entitiesManager, self.bulletsManager, self.particlesManager = entitiesManager, bulletsManager, particlesManager
+        self.knockback = knockback
 
     def update(self, DT):
         if self.cooldown > 0:
             self.cooldown -= DT
+        if not self.charging:
+            self.charge = 0
+        self.charging = False
+
+    def charge_up(self, DT):
+        self.charge += DT
+        self.charging = True
 
     def shoot(self, DT, position, target_position):
         if self.bullet is None:
             return False
         if self.ammo <= 0:
             return False
-        if self.max_cooldown > 0 and self.cooldown < self.max_cooldown:
+        if self.max_cooldown > 0 <= self.cooldown:
             return False
         if self.max_charge > 0 and self.charge < self.max_charge:
-            self.charge += DT
             return False
         self.bulletsManager.spawn(self.bullet.create(position, target_position))
         self.charge = 0
@@ -53,4 +62,4 @@ class Weapon:
 
 class Bow(Weapon):
     def __init__(self, entitiesManager, bulletsManager, particlesManager, owner):
-        super().__init__(100, 30, 0, entitiesManager, bulletsManager, particlesManager, owner, Arrow)
+        super().__init__(float("inf"), 30, 10, entitiesManager, bulletsManager, particlesManager, owner, Arrow)

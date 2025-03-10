@@ -30,9 +30,9 @@ entitiesManager = EntitiesManager()
 # [entitiesManager.spawn(Lance(700* random.random(),700* random.random(),10,player)) for i in range(5)]
 bulletsManager = BulletsManager()
 particlesManager = ParticlesManager()
-[entitiesManager.spawn(Shooter([700* random.random(),700* random.random()], 10, Teams.TEAM_ENEMY, entitiesManager, bulletsManager, particlesManager)) for i in range(5)]
-[entitiesManager.spawn(Shooter([700* random.random(),700* random.random()], 10, Teams.TEAM_PLAYER, entitiesManager, bulletsManager, particlesManager)) for i in range(5)]
-entitiesManager.spawn(Player([CW,CH], 100, Teams.TEAM_PLAYER, entitiesManager, bulletsManager, particlesManager, inputManager))
+[entitiesManager.spawn(Shooter([700* random.random(),700* random.random()], 10, Teams.TEAM_ENEMY, entitiesManager, bulletsManager, particlesManager)) for i in range(random.randint(5,15))]
+[entitiesManager.spawn(Shooter([700* random.random(),700* random.random()], 10, Teams.TEAM_PLAYER, entitiesManager, bulletsManager, particlesManager)) for i in range(random.randint(5,15))]
+entitiesManager.spawn(playerify(Shooter([CW,CH], 100, Teams.TEAM_PLAYER, entitiesManager, bulletsManager, particlesManager), inputManager))
 
 while True:
     mx, my = pygame.mouse.get_pos()
@@ -55,6 +55,7 @@ while True:
     particlesManager.render(screen)
     entitiesManager.render(screen)
     bulletsManager.render(screen)
+    entitiesManager.render_UI(screen)
     if mode == Modes.MODE_MENU:
         pass
 

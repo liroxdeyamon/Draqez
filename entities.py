@@ -3,7 +3,7 @@ import math
 import pygame
 import copy
 
-from Draqez.classes import Particle
+from classes import Particle
 from config import *
 from auxilium import *
 from managers import *
@@ -19,32 +19,52 @@ class Entity:
         self.speed = speed
         self.angle = 0
         self.color = TEAM_COLORS.get(team, (50,50,50)) if color is None else color
-
+        self.dynamic_color = self.color
+        self.last_knockback = 0
         self.weapons = []
         self.current_weapon = 0
         self.after_shoot = False
         self.last_shoot_position = self.position
-        self.healthManager = healthManager
+        self.health = healthManager
         self.entitiesManager, self.bulletsManager, self.particlesManager = entitiesManager, bulletsManager, particlesManager
 
         self.behaviour = behaviour
 
     def update(self, DT):
+        self.after_shoot = False
         self.position, self.velocity = process_velocity(DT, self.position, self.velocity, WIDTH, HEIGHT, True)
-        self.healthManager.update(DT)
+        self.health.update(DT)
         self.behaviour.update(DT)
         inputs = self.behaviour.inputs()
         self.velocity[0]+=inputs.get("horizontal", 0)*self.speed*DT
         self.velocity[1]+=inputs.get("vertical", 0)*self.speed*DT
-        if inputs.get("shooting", False) and len(self.weapons) > 0 and (weapon := self.weapons[self.current_weapon]) is not None:
-            if (shoot_pos := inputs.get("shoot_pos", None)) is not None:
-                self.after_shoot = weapon.shoot(DT, self.position, shoot_pos)
-                self.last_shoot_position = shoot_pos
+
+        if len(self.weapons) > 0 and (weapon := self.weapons[self.current_weapon]) is not None:
+            if inputs.get("shoot", False):
+                if (shoot_pos := inputs.get("shoot_pos", None)) is not None:
+                    self.after_shoot = weapon.shoot(DT, self.position, shoot_pos)
+                    self.last_shoot_position = shoot_pos
+                    self.last_knockback = weapon.knockback
+            if inputs.get("charging"):
+                weapon.charge_up(DT)
         for weapon in self.weapons:
             weapon.update(DT)
+        if self.after_shoot:
+            vel = pos_by_angle(0,0,get_angle(*self.position, *self.last_shoot_position), 5)
+            self.velocity[0]+=vel[0]*DT*self.last_knockback
+            self.velocity[1]+=vel[1]*DT*self.last_knockback
+
+        if self.weapons and self.current_weapon < len(self.weapons):
+            if (perc := self.weapons[self.current_weapon].cooldown_percentage()) > 0:
+                self.dynamic_color = Color.lerp(Color.WHITE, self.color, 1 - perc)
+            elif (perc := self.weapons[self.current_weapon].charge_percentage()) > 0:
+                self.dynamic_color = Color.lerp(self.color, Color.WHITE, perc)
 
     def render(self, surface):
         pass
+
+    def render_UI(self, surface):
+        self.health.render(surface)
 
 class Player(Entity):
     def __init__(self, position, health, team, entitiesManager, bulletsManager,
@@ -52,28 +72,27 @@ class Player(Entity):
         super().__init__(position, [0,0], team, 10, 5, RenderableHealthManager(health), entitiesManager, bulletsManager, particlesManager, PlayerController(inputManager))
         self.invincible_color = (0, 0, 200)
         self.speed_color = Color.WHITE
-        self.dynamic_color = self.color
+        self.weapons.append(Bow(entitiesManager, bulletsManager, particlesManager, self))
 
     def update(self, DT):
         super().update(DT)
         self.angle = lerp_angle(self.angle, get_angle(self.position[0], self.position[1], *pygame.mouse.get_pos()), DT/2)
         self.dynamic_color = Color.lerp(self.dynamic_color, Color.lerp(self.color, self.speed_color, clamp(distance(0,0,*self.velocity)/self.speed/8, 0, 1)), DT/2)
 
-
     def render(self, surface):
         super().render(surface)
-        c = self.invincible_color if self.healthManager.is_invincible() else self.dynamic_color
+        # c = self.invincible_color if self.health.is_invincible() else self.dynamic_color
         if self.velocity == [0, 0]:
-            pygame.draw.circle(surface, c, self.position, self.size)
+            pygame.draw.circle(surface, self.dynamic_color, self.position, self.size)
         else:
             vx, vy = self.velocity
             w, h = max(self.size * 1.5, distance(0, 0, vx, vy) * 1.5), self.size * 1.5
             es = pygame.Surface((w, h), pygame.SRCALPHA)
-            pygame.draw.ellipse(es, c, es.get_rect(center=(w // 2, h // 2)))
+            pygame.draw.ellipse(es, self.dynamic_color, es.get_rect(center=(w // 2, h // 2)))
             rs = pygame.transform.rotate(es, -get_angle(0, 0, vx, vy))
             surface.blit(rs, rs.get_rect(center=self.position))
         # pygame.draw.circle(surface, self.dynamic_color, pos_by_angle(*self.position, self.angle, 20), 5)
-        self.healthManager.render(surface)
+        self.health.render(surface)
 
 
 class Shooter(Entity):
@@ -84,37 +103,19 @@ class Shooter(Entity):
 
     def update(self, DT):
         super().update(DT)
-        if self.after_shoot:
-            vel = pos_by_angle(0,0,get_angle(*self.position, *self.last_shoot_position), 5)
-            self.velocity[0]+=vel[0]*DT
-            self.velocity[1]+=vel[1]*DT
-        if (perc := self.weapons[0].cooldown_percentage()) > 0:
-            self.dynamic_color = Color.lerp(Color.WHITE, self.color, perc)
-        elif (perc := self.weapons[0].charge_percentage()) > 0:
-            self.dynamic_color = Color.lerp(self.color, Color.WHITE, perc)
-        # self.shoot_cooldown -= DT
-        # self.dynamic_color = Color.lerp(self.dynamic_color, Color.lerp(self.color, Color.WHITE, 1-self.shoot_cooldown/self.max_shoot_cooldown), DT/2)
-        # if self.shoot_cooldown <= 0:
-        #     self.shoot_cooldown = self.max_shoot_cooldown
-        #     direction = pos_by_angle(0,0,get_angle(self.x-self.size/2, self.y-self.size/2,
-        #                                                              self.target.x, self.target.y),5)
-        #     bulletManager.spawn(
-        #         Bullet(self.x-self.size/2, self.y-self.size/2, random.randint(1,3), direction,1,int(self.size/3),self.color)
-        #     )
-        #     self.velocity = [-direction[0], -direction[1]]
 
         if random.random() > 0.8:
             offset = pos_by_angle(0, 0, random.randint(0, 360), 17)
             self.particlesManager.spawn(
                 Particle(
-                    [self.position[0] - self.size / 2 + offset[0], self.position[1] - self.size / 2 + offset[1]],
+                    [self.position[0] + offset[0], self.position[1] + offset[1]],
                     random.randint(1,4), 20, self.dynamic_color, [-offset[0]/4, -offset[1]/4]
                 )
             )
 
     def render(self, surface):
         super().render(surface)
-        pygame.draw.circle(surface, self.dynamic_color, (self.position[0]-self.size/2, self.position[1]-self.size/2), self.size, 4)
+        pygame.draw.circle(surface, self.dynamic_color, self.position, self.size, 4)
 
         # pygame.draw.circle(surface, self.dynamic_color, (self.x-self.size/2, self.y-self.size/2), self.size/3*(1-(self.shoot_cooldown/self.max_shoot_cooldown)))
 

@@ -2,7 +2,6 @@ import math
 import random
 import pygame
 
-
 def lerp(a, b, t):
     return a + (b - a) * t
 
